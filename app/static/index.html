@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPLAT·FORGE — 3D Dataset Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --c:#00f5ff;--m:#ff0090;--g:#39ff14;--a:#ffb300;
+  --bg:#020a0e;--bg2:#041218;--panel:rgba(2,20,30,0.92);
+  --border:rgba(0,245,255,0.14);--border2:rgba(0,245,255,0.22);
+  --text:rgba(0,245,255,0.88);--dim:rgba(0,245,255,0.38);
+  --font:'Share Tech Mono',monospace;--head:'Orbitron',sans-serif
+}
+html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:var(--font);overflow-x:hidden}
+
+/* Grid bg */
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(0,245,255,.05),transparent 70%),
+    linear-gradient(rgba(0,245,255,.022) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,245,255,.022) 1px,transparent 1px);
+  background-size:auto,56px 56px,56px 56px}
+body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px)}
+
+/* Corner brackets */
+.corners::before,.corners::after{content:'';position:fixed;width:24px;height:24px;z-index:5}
+.corners::before{top:10px;left:10px;border-top:1px solid var(--c);border-left:1px solid var(--c)}
+.corners::after{top:10px;right:10px;border-top:1px solid var(--c);border-right:1px solid var(--c)}
+.corner-b::before,.corner-b::after{content:'';position:fixed;width:24px;height:24px;z-index:5}
+.corner-b::before{bottom:10px;left:10px;border-bottom:1px solid var(--c);border-left:1px solid var(--c)}
+.corner-b::after{bottom:10px;right:10px;border-bottom:1px solid var(--c);border-right:1px solid var(--c)}
+
+/* Layout */
+#wrap{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:28px 24px 60px}
+
+/* ── Header ── */
+header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:36px;
+  padding-bottom:16px;border-bottom:1px solid var(--border)}
+.logo-text{font-family:var(--head);font-size:26px;font-weight:900;letter-spacing:5px;
+  color:var(--c);text-shadow:0 0 28px var(--c),0 0 60px rgba(0,245,255,.15)}
+.logo-sub{font-size:9px;letter-spacing:3px;color:var(--m);margin-top:3px}
+.hstatus{text-align:right}
+.hstatus-row{font-size:10px;letter-spacing:1px;color:var(--dim);margin-bottom:3px}
+.hstatus-val{color:var(--g);text-shadow:0 0 6px var(--g)}
+.hstatus-val.warn{color:var(--a);text-shadow:0 0 6px var(--a)}
+
+/* ── Section titles ── */
+.sec-title{font-family:var(--head);font-size:10px;letter-spacing:4px;color:var(--dim);
+  text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.sec-title::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--border2),transparent)}
+
+/* ── Upload zone ── */
+#dropzone{border:1px solid var(--border2);background:var(--panel);
+  padding:40px 32px;text-align:center;cursor:pointer;transition:all .3s;
+  position:relative;overflow:hidden;margin-bottom:32px}
+#dropzone::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 60% 60% at 50% 50%,rgba(0,245,255,.03),transparent);
+  pointer-events:none;transition:opacity .3s}
+#dropzone:hover,#dropzone.drag{border-color:var(--c);
+  box-shadow:0 0 32px rgba(0,245,255,.08),inset 0 0 20px rgba(0,245,255,.03)}
+#dropzone:hover::before,#dropzone.drag::before{opacity:3}
+.dz-icon{font-size:38px;margin-bottom:12px;color:var(--c);
+  text-shadow:0 0 20px var(--c);display:block;animation:float 3s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.dz-txt{font-size:13px;letter-spacing:2px;margin-bottom:6px}
+.dz-sub{font-size:10px;letter-spacing:1px;color:var(--dim);margin-bottom:20px}
+.dz-fmts{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:24px}
+.fmt-tag{font-size:9px;letter-spacing:1px;padding:3px 10px;
+  border:1px solid rgba(0,245,255,.18);color:var(--dim)}
+.preview-strip{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;
+  margin-top:16px;max-height:120px;overflow:hidden}
+.prev-thumb{width:72px;height:56px;object-fit:cover;border:1px solid rgba(0,245,255,.18);
+  filter:saturate(0.7) brightness(0.85);transition:filter .2s}
+.prev-thumb:hover{filter:saturate(1) brightness(1)}
+.prev-more{width:72px;height:56px;display:flex;align-items:center;justify-content:center;
+  border:1px solid rgba(0,245,255,.18);color:var(--dim);font-size:13px}
+
+/* ── Upload controls ── */
+.upload-row{display:flex;gap:12px;align-items:center;justify-content:center;margin-top:16px}
+.btn{background:transparent;border:1px solid var(--border2);color:var(--text);
+  padding:10px 24px;font-family:var(--font);font-size:11px;letter-spacing:2px;
+  cursor:pointer;text-transform:uppercase;transition:all .28s}
+.btn:hover{border-color:var(--c);box-shadow:0 0 14px rgba(0,245,255,.12)}
+.btn.primary{border-color:var(--m);color:var(--m)}
+.btn.primary:hover{background:rgba(255,0,144,.08);box-shadow:0 0 18px rgba(255,0,144,.2)}
+.btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+.file-count{font-size:10px;color:var(--g);letter-spacing:1px}
+
+/* ── 3DGS Toggle ── */
+.opt-row{display:flex;align-items:center;gap:10px;justify-content:center;margin-top:12px;
+  font-size:10px;color:var(--dim);letter-spacing:1px}
+.toggle{position:relative;width:36px;height:18px;cursor:pointer}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-track{position:absolute;inset:0;background:rgba(0,245,255,.1);
+  border:1px solid var(--border2);transition:.3s}
+.toggle input:checked + .toggle-track{background:rgba(0,245,255,.15);border-color:var(--c)}
+.toggle-track::after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;
+  background:var(--dim);transition:.3s}
+.toggle input:checked + .toggle-track::after{left:20px;background:var(--c);
+  box-shadow:0 0 6px var(--c)}
+
+/* ── Sessions grid ── */
+#sessions-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+.session-card{background:var(--panel);border:1px solid var(--border);
+  padding:18px 20px;position:relative;overflow:hidden;transition:border-color .3s}
+.session-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--border2),transparent)}
+.session-card:hover{border-color:var(--border2)}
+.session-card.status-done{border-color:rgba(0,245,255,.22)}
+.session-card.status-running{border-color:rgba(255,179,0,.22);
+  box-shadow:0 0 20px rgba(255,179,0,.04)}
+.session-card.status-error{border-color:rgba(255,0,0,.2)}
+
+.card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+.card-name{font-size:12px;letter-spacing:1px;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;max-width:200px;font-family:var(--head);color:var(--text)}
+.card-sid{font-size:9px;color:var(--dim);letter-spacing:1px;margin-top:2px}
+
+.status-pill{font-size:8px;letter-spacing:2px;padding:3px 10px;border-radius:0;
+  text-transform:uppercase;white-space:nowrap}
+.pill-queued{border:1px solid rgba(0,245,255,.25);color:var(--dim)}
+.pill-running{border:1px solid rgba(255,179,0,.4);color:var(--a);
+  animation:blink .9s step-end infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.5}}
+.pill-done{border:1px solid rgba(57,255,20,.35);color:var(--g)}
+.pill-error{border:1px solid rgba(255,50,50,.35);color:#ff4444}
+
+.card-meta{display:flex;gap:16px;margin-bottom:10px}
+.cmeta{font-size:9px;color:var(--dim);letter-spacing:1px}
+.cmeta span{color:var(--text)}
+
+/* Progress bar */
+.pbar-wrap{height:2px;background:rgba(0,245,255,.07);margin-bottom:8px;overflow:hidden}
+.pbar{height:100%;background:linear-gradient(90deg,var(--m),var(--c));
+  transition:width .4s ease;box-shadow:0 0 4px var(--c)}
+.pstep{font-size:9px;color:var(--dim);letter-spacing:1px;margin-bottom:10px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Card thumbnails */
+.card-thumbs{display:flex;gap:6px;margin-bottom:12px}
+.card-thumb{width:56px;height:42px;object-fit:cover;border:1px solid rgba(0,245,255,.12);
+  filter:saturate(.7) brightness(.85)}
+.card-thumb.depth{filter:hue-rotate(200deg) saturate(1.2) brightness(.7)}
+
+/* Card actions */
+.card-actions{display:flex;gap:8px;flex-wrap:wrap}
+.cbtn{background:transparent;border:1px solid var(--border);color:var(--dim);
+  padding:5px 12px;font-family:var(--font);font-size:9px;letter-spacing:1.5px;
+  cursor:pointer;text-transform:uppercase;transition:all .25s;text-decoration:none;
+  display:inline-block}
+.cbtn:hover{border-color:var(--c);color:var(--text)}
+.cbtn.main{border-color:rgba(0,245,255,.3);color:var(--c)}
+.cbtn.main:hover{background:rgba(0,245,255,.07);box-shadow:0 0 12px rgba(0,245,255,.1)}
+.cbtn.del{border-color:rgba(255,50,50,.2);color:#ff4444}
+.cbtn.del:hover{background:rgba(255,50,50,.07)}
+
+/* Outputs section in card */
+.card-outputs{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap}
+.out-tag{font-size:8px;letter-spacing:1px;padding:2px 8px;
+  border:1px solid rgba(57,255,20,.2);color:rgba(57,255,20,.7)}
+
+/* ── Empty state ── */
+#empty{text-align:center;padding:60px 20px;color:var(--dim)}
+#empty .big{font-size:48px;margin-bottom:16px;opacity:.3}
+#empty p{font-size:10px;letter-spacing:2px}
+
+/* ── Toast ── */
+#toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(12px);
+  background:rgba(2,18,26,.97);border:1px solid var(--c);color:var(--text);
+  padding:10px 20px;font-family:var(--font);font-size:11px;letter-spacing:1px;
+  z-index:100;opacity:0;transition:all .3s;white-space:nowrap;pointer-events:none}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── Progress overlay ── */
+#upload-overlay{display:none;position:fixed;inset:0;z-index:50;
+  background:rgba(2,10,14,.88);backdrop-filter:blur(8px);
+  align-items:center;justify-content:center;flex-direction:column;gap:16px}
+#upload-overlay.on{display:flex}
+.ov-txt{font-family:var(--head);font-size:13px;letter-spacing:3px;color:var(--c)}
+.ov-bar-wrap{width:280px;height:2px;background:rgba(0,245,255,.1)}
+.ov-bar{height:100%;background:linear-gradient(90deg,var(--m),var(--c));
+  transition:width .4s ease;box-shadow:0 0 6px var(--c)}
+.ov-sub{font-size:10px;letter-spacing:2px;color:var(--dim)}
+
+#fi{display:none}
+</style>
+</head>
+<body>
+<div class="corners"></div>
+<div class="corner-b"></div>
+
+<div id="wrap">
+  <!-- Header -->
+  <header>
+    <div>
+      <div class="logo-text">SPLAT·FORGE</div>
+      <div class="logo-sub">3D GAUSSIAN SPLATTING · DATASET PLATFORM</div>
+    </div>
+    <div class="hstatus">
+      <div class="hstatus-row">GPU &nbsp;<span class="hstatus-val" id="hgpu">—</span></div>
+      <div class="hstatus-row">API &nbsp;<span class="hstatus-val" id="hapi">checking...</span></div>
+      <div class="hstatus-row">SESSIONS &nbsp;<span class="hstatus-val" id="hsess">0</span></div>
+    </div>
+  </header>
+
+  <!-- Upload -->
+  <div class="sec-title">▶ NEW RECONSTRUCTION</div>
+
+  <div id="dropzone">
+    <span class="dz-icon">⬡</span>
+    <div class="dz-txt">DROP IMAGES HERE OR CLICK TO BROWSE</div>
+    <div class="dz-sub">Minimum 10 images recommended · Max 500MB total</div>
+    <div class="dz-fmts">
+      <span class="fmt-tag">JPG</span>
+      <span class="fmt-tag">PNG</span>
+      <span class="fmt-tag">WEBP</span>
+      <span class="fmt-tag">BMP</span>
+      <span class="fmt-tag">TIFF</span>
+    </div>
+    <div id="preview-strip" class="preview-strip"></div>
+    <div class="upload-row">
+      <span class="file-count" id="file-count"></span>
+      <button class="btn primary" id="upload-btn" disabled>▶ START PIPELINE</button>
+    </div>
+    <div class="opt-row">
+      <label class="toggle">
+        <input type="checkbox" id="opt-3dgs" checked>
+        <span class="toggle-track"></span>
+      </label>
+      ENABLE 3D GAUSSIAN SPLATTING
+    </div>
+  </div>
+
+  <!-- Sessions -->
+  <div class="sec-title" style="margin-top:8px">▶ SESSIONS</div>
+  <div id="sessions-grid"></div>
+  <div id="empty">
+    <div class="big">⬡</div>
+    <p>NO SESSIONS YET · UPLOAD IMAGES TO START</p>
+  </div>
+</div>
+
+<!-- Upload overlay -->
+<div id="upload-overlay">
+  <div class="ov-txt">UPLOADING</div>
+  <div class="ov-bar-wrap"><div class="ov-bar" id="ov-bar" style="width:0%"></div></div>
+  <div class="ov-sub" id="ov-sub">preparing...</div>
+</div>
+
+<div id="toast"></div>
+<input type="file" id="fi" multiple accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif">
+
+<script>
+'use strict';
+// ══════════════════════════════════════════════════════════
+// SPLAT·FORGE DASHBOARD
+// ══════════════════════════════════════════════════════════
+const API = '';  // same origin
+const POLL_MS = 2000;
+
+// DOM
+const dz        = document.getElementById('dropzone');
+const fi        = document.getElementById('fi');
+const uploadBtn = document.getElementById('upload-btn');
+const fileCount = document.getElementById('file-count');
+const previewEl = document.getElementById('preview-strip');
+const sessGrid  = document.getElementById('sessions-grid');
+const emptyEl   = document.getElementById('empty');
+const overlay   = document.getElementById('upload-overlay');
+const ovBar     = document.getElementById('ov-bar');
+const ovSub     = document.getElementById('ov-sub');
+const toast     = document.getElementById('toast');
+
+let selectedFiles = [];
+const sseMap = {};        // sid → EventSource
+const cardMap = {};       // sid → card DOM element
+
+// ── Toast ─────────────────────────────────────────────────
+let toastTmr;
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('on');
+  clearTimeout(toastTmr);
+  toastTmr = setTimeout(() => toast.classList.remove('on'), 3000);
+}
+
+// ── Health check ──────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const r = await fetch(`${API}/api/health`);
+    const d = await r.json();
+    document.getElementById('hapi').textContent = 'ONLINE';
+    const gpuEl = document.getElementById('hgpu');
+    if (d.gpu) {
+      gpuEl.textContent = (d.gpu_name || 'GPU').substring(0, 16);
+    } else {
+      gpuEl.textContent = 'CPU ONLY';
+      gpuEl.className = 'hstatus-val warn';
+    }
+  } catch {
+    document.getElementById('hapi').textContent = 'OFFLINE';
+    document.getElementById('hapi').className = 'hstatus-val warn';
+  }
+}
+
+// ── File selection ─────────────────────────────────────────
+function handleFiles(files) {
+  const valid = Array.from(files).filter(f =>
+    /\.(jpg|jpeg|png|webp|bmp|tiff|tif)$/i.test(f.name)
+  );
+  if (!valid.length) { showToast('No supported images found.'); return; }
+  selectedFiles = valid;
+  fileCount.textContent = valid.length + ' file' + (valid.length > 1 ? 's' : '') + ' selected';
+  uploadBtn.disabled = false;
+  renderPreviews(valid);
+}
+
+function renderPreviews(files) {
+  previewEl.innerHTML = '';
+  const limit = Math.min(files.length, 9);
+  for (let i = 0; i < limit; i++) {
+    const img = document.createElement('img');
+    img.className = 'prev-thumb';
+    img.src = URL.createObjectURL(files[i]);
+    img.onload = () => URL.revokeObjectURL(img.src);
+    previewEl.appendChild(img);
+  }
+  if (files.length > 9) {
+    const more = document.createElement('div');
+    more.className = 'prev-more';
+    more.textContent = '+' + (files.length - 9);
+    previewEl.appendChild(more);
+  }
+}
+
+// Drop zone
+dz.addEventListener('click', () => fi.click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+});
+fi.addEventListener('change', e => { if (e.target.files.length) handleFiles(e.target.files); fi.value = ''; });
+
+// ── Upload ─────────────────────────────────────────────────
+uploadBtn.addEventListener('click', async () => {
+  if (!selectedFiles.length) return;
+
+  overlay.classList.add('on');
+  ovBar.style.width = '10%';
+  ovSub.textContent = 'uploading ' + selectedFiles.length + ' images...';
+
+  const fd = new FormData();
+  for (const f of selectedFiles) fd.append('files', f);
+
+  // Fake upload progress
+  let p = 10;
+  const prog = setInterval(() => {
+    p = Math.min(88, p + 4);
+    ovBar.style.width = p + '%';
+  }, 180);
+
+  try {
+    const r = await fetch(`${API}/api/upload`, { method: 'POST', body: fd });
+    clearInterval(prog);
+    ovBar.style.width = '100%';
+
+    if (!r.ok) {
+      const err = await r.json();
+      throw new Error(err.detail || 'Upload failed');
+    }
+
+    const data = await r.json();
+    ovSub.textContent = 'session created ✓';
+    setTimeout(() => overlay.classList.remove('on'), 600);
+
+    // Reset upload zone
+    selectedFiles = [];
+    fileCount.textContent = '';
+    uploadBtn.disabled = true;
+    previewEl.innerHTML = '';
+
+    showToast('Pipeline started — ' + data.files + ' images uploaded');
+    loadSessions();
+
+  } catch (err) {
+    clearInterval(prog);
+    overlay.classList.remove('on');
+    showToast('⚠ ' + err.message);
+  }
+});
+
+// ── Sessions ───────────────────────────────────────────────
+async function loadSessions() {
+  try {
+    const r = await fetch(`${API}/api/sessions`);
+    const sessions = await r.json();
+    document.getElementById('hsess').textContent = sessions.length;
+
+    emptyEl.style.display = sessions.length ? 'none' : 'block';
+    sessGrid.style.display = sessions.length ? 'grid' : 'none';
+
+    // Add/update cards
+    const sids = new Set(sessions.map(s => s.sid));
+
+    // Remove deleted
+    for (const sid of Object.keys(cardMap)) {
+      if (!sids.has(sid)) { cardMap[sid].remove(); delete cardMap[sid]; }
+    }
+
+    for (const s of sessions) {
+      if (!cardMap[s.sid]) {
+        const card = createCard(s);
+        sessGrid.prepend(card);
+        cardMap[s.sid] = card;
+        subscribeSSE(s.sid);
+      } else {
+        updateCard(s.sid, s);
+      }
+    }
+  } catch (err) {
+    console.error('loadSessions:', err);
+  }
+}
+
+function createCard(s) {
+  const div = document.createElement('div');
+  div.className = `session-card status-${s.status}`;
+  div.dataset.sid = s.sid;
+  div.innerHTML = cardHTML(s);
+  bindCardEvents(div, s.sid);
+  return div;
+}
+
+function updateCard(sid, s) {
+  const card = cardMap[sid];
+  if (!card) return;
+  card.className = `session-card status-${s.status}`;
+  card.innerHTML = cardHTML(s);
+  bindCardEvents(card, sid);
+}
+
+function cardHTML(s) {
+  const age = timeSince(s.created_at);
+  const pillClass = {
+    queued: 'pill-queued', running: 'pill-running',
+    done: 'pill-done', error: 'pill-error'
+  }[s.status] || 'pill-queued';
+
+  const outputs = [];
+  if (s.has_stitched) outputs.push('STITCHED');
+  if (s.has_depth) outputs.push('DEPTH 16bit');
+  if (s.has_seg) outputs.push('SEGMENTATION');
+  if (s.has_coco) outputs.push('COCO JSON');
+  if (s.has_ply) outputs.push('PLY 3DGS');
+  if (s.has_splat) outputs.push('SPLAT');
+
+  const pct = s.progress || 0;
+  const step = s.step || '—';
+
+  const thumbs = buildThumbs(s);
+
+  let actions = '';
+  if (s.status === 'done' && s.has_splat) {
+    actions += `<a class="cbtn main" href="/viewer/${s.sid}" target="_blank">▶ VIEW 3D</a>`;
+  }
+  if (s.status === 'done' && s.has_ply) {
+    actions += `<a class="cbtn" href="/api/file/${s.sid}/3dgs/gaussians_final.ply" download>⬡ PLY</a>`;
+  }
+  if (s.status === 'done' && s.has_splat) {
+    actions += `<a class="cbtn" href="/api/file/${s.sid}/3dgs/scene.splat" download>⬡ SPLAT</a>`;
+  }
+  if (s.status === 'done' && s.has_coco) {
+    actions += `<a class="cbtn" href="/api/file/${s.sid}/annotations_coco.json" download>⬡ COCO</a>`;
+  }
+  actions += `<button class="cbtn del" data-del="${s.sid}">✕</button>`;
+
+  return `
+    <div class="card-top">
+      <div>
+        <div class="card-name">${escHtml(s.name)}</div>
+        <div class="card-sid">${s.sid} · ${s.file_count} images · ${age}</div>
+      </div>
+      <span class="status-pill ${pillClass}">${s.status}</span>
+    </div>
+    ${s.status === 'running' || pct > 0 && pct < 100 ? `
+      <div class="pbar-wrap"><div class="pbar" style="width:${pct}%"></div></div>
+      <div class="pstep">${escHtml(step)} (${pct}%)</div>` : ''}
+    ${s.status === 'error' ? `<div class="pstep" style="color:#ff4444">⚠ ${escHtml(s.error||'unknown error')}</div>` : ''}
+    ${thumbs}
+    ${outputs.length ? `<div class="card-outputs">${outputs.map(o=>`<span class="out-tag">✓ ${o}</span>`).join('')}</div>` : ''}
+    <div class="card-actions" style="margin-top:12px">${actions}</div>`;
+}
+
+function buildThumbs(s) {
+  const thumbs = [];
+  if (s.has_stitched)
+    thumbs.push(`<img class="card-thumb" src="/api/file/${s.sid}/stitched.png" alt="stitched">`);
+  if (s.has_depth)
+    thumbs.push(`<img class="card-thumb depth" src="/api/file/${s.sid}/depth_viz.png" alt="depth">`);
+  if (s.has_seg)
+    thumbs.push(`<img class="card-thumb" src="/api/file/${s.sid}/segmentation.png" alt="seg">`);
+  return thumbs.length
+    ? `<div class="card-thumbs">${thumbs.join('')}</div>`
+    : '';
+}
+
+function bindCardEvents(card, sid) {
+  card.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (!confirm('Delete this session and all its data?')) return;
+      try {
+        await fetch(`${API}/api/session/${sid}`, { method: 'DELETE' });
+        card.remove();
+        delete cardMap[sid];
+        closeSse(sid);
+        showToast('Session deleted.');
+        loadSessions();
+      } catch { showToast('Delete failed.'); }
+    });
+  });
+}
+
+// ── SSE ────────────────────────────────────────────────────
+function subscribeSSE(sid) {
+  if (sseMap[sid]) return;
+  const es = new EventSource(`${API}/api/events/${sid}`);
+  sseMap[sid] = es;
+
+  es.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      updateCard(sid, data);
+      document.getElementById('hsess').textContent = Object.keys(cardMap).length;
+      if (data.status === 'done' || data.status === 'error') closeSse(sid);
+    } catch {}
+  };
+  es.onerror = () => closeSse(sid);
+}
+
+function closeSse(sid) {
+  if (sseMap[sid]) { sseMap[sid].close(); delete sseMap[sid]; }
+}
+
+// ── Helpers ────────────────────────────────────────────────
+function timeSince(ts) {
+  const s = Math.floor(Date.now() / 1000 - ts);
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  return Math.floor(s / 3600) + 'h ago';
+}
+
+function escHtml(str) {
+  return String(str || '').replace(/[&<>"']/g, m =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+// ── Init ──────────────────────────────────────────────────
+checkHealth();
+loadSessions();
+setInterval(loadSessions, POLL_MS);
+setInterval(checkHealth, 15000);
+</script>
+</body>
+</html>

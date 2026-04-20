@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPLAT·FORGE — 3D Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --c:#00f5ff;--m:#ff0090;--g:#39ff14;--a:#ffb300;
+  --bg:#020a0e;--panel:rgba(2,18,26,0.88);--border:rgba(0,245,255,0.16);
+  --text:rgba(0,245,255,0.88);--dim:rgba(0,245,255,0.38);
+  --font:'Share Tech Mono',monospace;--head:'Orbitron',sans-serif
+}
+html,body{width:100%;height:100%;background:var(--bg);overflow:hidden}
+#cv{position:fixed;top:0;left:0;width:100%;height:100%}
+body::before{content:'';position:fixed;inset:0;z-index:1;pointer-events:none;
+  background-image:linear-gradient(rgba(0,245,255,.022) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,245,255,.022) 1px,transparent 1px);
+  background-size:52px 52px}
+body::after{content:'';position:fixed;inset:0;z-index:2;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px)}
+
+/* Corner brackets */
+.cb{position:fixed;width:20px;height:20px;z-index:5}
+.tl{top:9px;left:9px;border-top:1px solid var(--c);border-left:1px solid var(--c)}
+.tr{top:9px;right:9px;border-top:1px solid var(--c);border-right:1px solid var(--c)}
+.bl{bottom:9px;left:9px;border-bottom:1px solid var(--c);border-left:1px solid var(--c)}
+.br{bottom:9px;right:9px;border-bottom:1px solid var(--c);border-right:1px solid var(--c)}
+
+/* Progress bar */
+#lb{position:fixed;top:0;left:0;width:100%;height:2px;z-index:100;opacity:0;transition:opacity .3s}
+#lb.on{opacity:1}
+#lf{height:100%;width:0;background:linear-gradient(90deg,var(--m),var(--c));
+  transition:width .3s ease;box-shadow:0 0 6px var(--c)}
+
+/* Panels */
+.panel{position:fixed;background:var(--panel);border:1px solid var(--border);
+  backdrop-filter:blur(16px);z-index:10;font-family:var(--font);
+  color:var(--text);padding:14px 18px}
+.panel::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--c),transparent)}
+
+/* Title panel */
+#pt{top:20px;left:20px;min-width:260px}
+.t1{font-family:var(--head);font-size:16px;font-weight:900;letter-spacing:4px;
+  color:var(--c);text-shadow:0 0 24px var(--c)}
+.t2{font-size:9px;letter-spacing:2px;color:var(--m);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+.sep{height:1px;background:linear-gradient(90deg,var(--c),transparent);margin:8px 0}
+.row{display:flex;justify-content:space-between;align-items:center;margin:3px 0;font-size:10px}
+.lbl{color:var(--dim);letter-spacing:1px;font-size:9px;text-transform:uppercase}
+.val{font-size:11px}
+.vg{color:var(--g);text-shadow:0 0 6px var(--g)}
+.vc{color:var(--c)}
+.vm{color:var(--m);text-shadow:0 0 6px var(--m)}
+.va{color:var(--a);text-shadow:0 0 6px var(--a)}
+
+/* Stats panel */
+#ps{top:20px;right:20px;min-width:210px}
+.fpsbg{height:2px;background:rgba(0,245,255,.07);margin-top:3px;overflow:hidden}
+.fpsfill{height:100%;background:linear-gradient(90deg,var(--m),var(--c));transition:width .15s}
+
+/* Controls */
+#pc{bottom:20px;left:20px;font-size:10px}
+.crow{display:flex;gap:10px;align-items:center;margin:3px 0;color:var(--dim)}
+.key{background:rgba(0,245,255,.07);border:1px solid rgba(0,245,255,.2);
+  padding:1px 7px;font-size:9px;color:var(--c);letter-spacing:1px}
+
+/* Toolbar */
+#tb{position:fixed;bottom:20px;right:20px;z-index:10;display:flex;gap:8px}
+.tbtn{background:transparent;border:1px solid rgba(0,245,255,.18);color:var(--dim);
+  padding:7px 14px;font-family:var(--font);font-size:10px;letter-spacing:1.5px;
+  cursor:pointer;text-transform:uppercase;transition:all .25s;text-decoration:none;
+  display:inline-block}
+.tbtn:hover{border-color:var(--c);color:var(--c);box-shadow:0 0 10px rgba(0,245,255,.1)}
+
+/* Loading state overlay */
+#lstate{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  z-index:20;text-align:center;font-family:var(--font);transition:opacity .5s}
+#lstate.hide{opacity:0;pointer-events:none}
+.spin{width:80px;height:80px;border:1px solid rgba(0,245,255,.15);
+  border-top-color:var(--c);border-radius:50%;animation:spin .8s linear infinite;
+  margin:0 auto 20px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ls-txt{font-family:var(--head);font-size:12px;letter-spacing:3px;color:var(--c);margin-bottom:8px}
+.ls-sub{font-size:10px;letter-spacing:2px;color:var(--dim)}
+
+/* Toast */
+#toast{position:fixed;bottom:68px;left:50%;transform:translateX(-50%) translateY(12px);
+  background:rgba(2,18,26,.97);border:1px solid var(--c);color:var(--text);
+  padding:8px 18px;font-family:var(--font);font-size:11px;letter-spacing:1px;
+  z-index:50;opacity:0;transition:all .3s;white-space:nowrap}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+#fi{display:none}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div class="cb tl"></div><div class="cb tr"></div>
+<div class="cb bl"></div><div class="cb br"></div>
+<div id="lb"><div id="lf"></div></div>
+
+<!-- Title -->
+<div class="panel" id="pt">
+  <div class="t1">SPLAT·FORGE</div>
+  <div class="t2" id="scene-name">LOADING SESSION...</div>
+  <div class="sep"></div>
+  <div class="row"><span class="lbl">SESSION</span><span class="val vc" id="sid-el">—</span></div>
+  <div class="row"><span class="lbl">FORMAT</span><span class="val vg" id="sfmt">—</span></div>
+  <div class="row"><span class="lbl">PSNR</span><span class="val vg" id="spsnr">—</span></div>
+</div>
+
+<!-- Stats -->
+<div class="panel" id="ps">
+  <div class="row"><span class="lbl">FPS</span><span class="val" id="sfps">—</span></div>
+  <div class="fpsbg"><div class="fpsfill" id="fpsf" style="width:0%"></div></div>
+  <div class="row" style="margin-top:8px">
+    <span class="lbl">GAUSSIANS</span><span class="val vg" id="scnt">—</span></div>
+  <div class="row"><span class="lbl">FILE SIZE</span><span class="val vc" id="sfsz">—</span></div>
+  <div class="row"><span class="lbl">SORT ms</span><span class="val" id="ssrt">—</span></div>
+  <div class="row"><span class="lbl">GPU MB</span><span class="val" id="smem">—</span></div>
+  <div class="row"><span class="lbl">CAMERA R</span><span class="val" id="scam">—</span></div>
+</div>
+
+<!-- Controls -->
+<div class="panel" id="pc">
+  <div class="crow"><span class="key">LMB</span>Orbit</div>
+  <div class="crow"><span class="key">RMB</span>Pan</div>
+  <div class="crow"><span class="key">SCROLL</span>Zoom</div>
+  <div class="crow"><span class="key">R</span>Reset</div>
+  <div class="crow"><span class="key">F</span>Focus</div>
+</div>
+
+<!-- Loading state -->
+<div id="lstate">
+  <div class="spin"></div>
+  <div class="ls-txt" id="ls-txt">LOADING SCENE</div>
+  <div class="ls-sub" id="ls-sub">fetching .splat file...</div>
+</div>
+
+<!-- Toolbar -->
+<div id="tb">
+  <a class="tbtn" href="/" id="back-btn">← DASHBOARD</a>
+  <button class="tbtn" id="bss">⬡ SCREENSHOT</button>
+  <button class="tbtn" id="bdl">⬡ DOWNLOAD</button>
+</div>
+
+<div id="toast"></div>
+<input type="file" id="fi" accept=".splat,.ply">
+
+<script>
+'use strict';
+// ══════════════════════════════════════════════════════════
+// SPLAT·FORGE VIEWER — with API session loading
+// WebGL2 · 3DGS math · auto-loads session .splat
+// ══════════════════════════════════════════════════════════
+
+const SESSION_ID = '{{SESSION_ID}}';  // injected by server
+const API = '';
+
+// ── DOM ──────────────────────────────────────────────────
+const cv    = document.getElementById('cv');
+const fi    = document.getElementById('fi');
+const lb    = document.getElementById('lb');
+const lf    = document.getElementById('lf');
+const lstate= document.getElementById('lstate');
+const lsTxt = document.getElementById('ls-txt');
+const lsSub = document.getElementById('ls-sub');
+const sfps  = document.getElementById('sfps');
+const fpsf  = document.getElementById('fpsf');
+const scnt  = document.getElementById('scnt');
+const sfsz  = document.getElementById('sfsz');
+const ssrt  = document.getElementById('ssrt');
+const smem  = document.getElementById('smem');
+const scam  = document.getElementById('scam');
+const sfmt  = document.getElementById('sfmt');
+const spsnr = document.getElementById('spsnr');
+const toast = document.getElementById('toast');
+
+// ── WebGL2 ───────────────────────────────────────────────
+const gl = cv.getContext('webgl2', {
+  antialias: false, alpha: false,
+  premultipliedAlpha: false, preserveDrawingBuffer: true
+});
+if (!gl) { alert('WebGL2 required.'); throw new Error('no webgl2'); }
+
+// ══════════════════════════════════════════════════════════
+// SHADERS
+// ══════════════════════════════════════════════════════════
+const VS = `#version 300 es
+precision highp float;
+in vec2 aQ;
+in vec3 aPos;
+in vec4 aCol;
+in vec3 aScl;
+in vec4 aRot;
+uniform mat4 uV;
+uniform mat4 uP;
+uniform vec2 uVP;
+uniform float uFx;
+uniform float uFy;
+out vec4 vCol;
+out vec2 vUV;
+out vec3 vCI;
+
+mat3 qToR(vec4 q){
+  float w=q.x,x=q.y,y=q.z,z=q.w;
+  float x2=x*x,y2=y*y,z2=z*z,xy=x*y,xz=x*z,yz=y*z,wx=w*x,wy=w*y,wz=w*z;
+  return mat3(
+    1.-2.*(y2+z2), 2.*(xy+wz),   2.*(xz-wy),
+    2.*(xy-wz),   1.-2.*(x2+z2), 2.*(yz+wx),
+    2.*(xz+wy),   2.*(yz-wx),   1.-2.*(x2+y2));
+}
+void main(){
+  vec4 cp4=uV*vec4(aPos,1.);
+  vec3 cp=cp4.xyz;
+  if(cp.z>-0.01){gl_Position=vec4(0,0,2,1);vCol=vec4(0);return;}
+  mat3 R=qToR(normalize(aRot));
+  vec3 s=max(aScl,vec3(1e-7));
+  mat3 M=mat3(R[0]*s.x,R[1]*s.y,R[2]*s.z);
+  mat3 S3=M*transpose(M);
+  float iz=1./cp.z,tx=cp.x*iz,ty=cp.y*iz;
+  mat3 J=mat3(-uFx*iz,0.,0.,0.,-uFy*iz,0.,uFx*tx*iz,uFy*ty*iz,0.);
+  mat3 W=mat3(uV);
+  mat3 T=J*W;
+  mat3 C=T*S3*transpose(T);
+  float a=C[0][0]+.3,b=C[0][1],c=C[1][1]+.3;
+  float det=a*c-b*b;
+  if(det<1e-6){gl_Position=vec4(0,0,2,1);vCol=vec4(0);return;}
+  float id=1./det;
+  vCI=vec3(c*id,-b*id,a*id);
+  float tr=a+c,disc=sqrt(max(0.,tr*tr*.25-det));
+  float lmax=tr*.5+disc;
+  float rad=ceil(3.*sqrt(max(0.,lmax)));
+  rad=clamp(rad,1.,1024.);
+  vec4 pp=uP*vec4(cp,1.);
+  vec3 ndc=pp.xyz/pp.w;
+  vec2 pxOff=aQ*rad;
+  vec2 ndcOff=pxOff*2./uVP;
+  vCol=aCol; vUV=pxOff;
+  gl_Position=vec4(ndc.xy+ndcOff,ndc.z,1.);
+}`;
+
+const FS = `#version 300 es
+precision highp float;
+in vec4 vCol;
+in vec2 vUV;
+in vec3 vCI;
+out vec4 fragColor;
+void main(){
+  float dx=vUV.x,dy=vUV.y;
+  float pw=-.5*(vCI.x*dx*dx+2.*vCI.y*dx*dy+vCI.z*dy*dy);
+  if(pw>0.)discard;
+  float a=min(.99,vCol.a*exp(pw));
+  if(a<.004)discard;
+  fragColor=vec4(vCol.rgb*a,a);
+}`;
+
+function mkShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
+    throw new Error('Shader: ' + gl.getShaderInfoLog(s));
+  return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, mkShader(gl.VERTEX_SHADER, VS));
+gl.attachShader(prog, mkShader(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS))
+  throw new Error('Link: ' + gl.getProgramInfoLog(prog));
+
+const A = {
+  aQ: gl.getAttribLocation(prog,'aQ'), aPos: gl.getAttribLocation(prog,'aPos'),
+  aCol: gl.getAttribLocation(prog,'aCol'), aScl: gl.getAttribLocation(prog,'aScl'),
+  aRot: gl.getAttribLocation(prog,'aRot'),
+};
+const U = {
+  uV:gl.getUniformLocation(prog,'uV'), uP:gl.getUniformLocation(prog,'uP'),
+  uVP:gl.getUniformLocation(prog,'uVP'), uFx:gl.getUniformLocation(prog,'uFx'),
+  uFy:gl.getUniformLocation(prog,'uFy'),
+};
+
+// Unit quad
+const QUAD = new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]);
+const qBuf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, qBuf);
+gl.bufferData(gl.ARRAY_BUFFER, QUAD, gl.STATIC_DRAW);
+
+// Scene state
+const FLOATS = 14, STRIDE = FLOATS * 4;
+let iData=null, iSorted=null, posArr=null, N=0, instBuf=null, vao=null;
+
+function buildVAO() {
+  if (vao) gl.deleteVertexArray(vao);
+  if (instBuf) gl.deleteBuffer(instBuf);
+  vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, qBuf);
+  gl.enableVertexAttribArray(A.aQ);
+  gl.vertexAttribPointer(A.aQ, 2, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribDivisor(A.aQ, 0);
+  instBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, instBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, iSorted.byteLength, gl.DYNAMIC_DRAW);
+  const setup = (attr, size, offset) => {
+    gl.enableVertexAttribArray(attr);
+    gl.vertexAttribPointer(attr, size, gl.FLOAT, false, STRIDE, offset);
+    gl.vertexAttribDivisor(attr, 1);
+  };
+  setup(A.aPos, 3, 0);
+  setup(A.aCol, 4, 12);
+  setup(A.aScl, 3, 28);
+  setup(A.aRot, 4, 40);
+  gl.bindVertexArray(null);
+}
+
+function depthSort(vm) {
+  const r0=vm[2], r1=vm[6], r2=vm[10];
+  const depths = new Float32Array(N);
+  for (let i=0; i<N; i++) {
+    const b=i*3;
+    depths[i] = r0*posArr[b]+r1*posArr[b+1]+r2*posArr[b+2];
+  }
+  const idx = new Int32Array(N);
+  for (let i=0;i<N;i++) idx[i]=i;
+  idx.sort((a,b)=>depths[a]-depths[b]);
+  for (let i=0;i<N;i++) {
+    const src=idx[i]*FLOATS, dst=i*FLOATS;
+    for (let j=0;j<FLOATS;j++) iSorted[dst+j]=iData[src+j];
+  }
+}
+
+// ── Parsers ───────────────────────────────────────────────
+function parseSplat(buf) {
+  const BPG=32, n=Math.floor(buf.byteLength/BPG);
+  if(!n) throw new Error('Empty .splat');
+  const id=new Float32Array(n*FLOATS), pos=new Float32Array(n*3);
+  const dv=new DataView(buf);
+  for (let i=0;i<n;i++) {
+    const b=i*BPG, o=i*FLOATS;
+    const x=dv.getFloat32(b,true), y=dv.getFloat32(b+4,true), z=dv.getFloat32(b+8,true);
+    id[o]=x;id[o+1]=y;id[o+2]=z; pos[i*3]=x;pos[i*3+1]=y;pos[i*3+2]=z;
+    id[o+3]=dv.getUint8(b+24)/255;id[o+4]=dv.getUint8(b+25)/255;
+    id[o+5]=dv.getUint8(b+26)/255;id[o+6]=dv.getUint8(b+27)/255;
+    id[o+7]=Math.abs(dv.getFloat32(b+12,true));
+    id[o+8]=Math.abs(dv.getFloat32(b+16,true));
+    id[o+9]=Math.abs(dv.getFloat32(b+20,true));
+    id[o+10]=(dv.getUint8(b+28)-128)/128;id[o+11]=(dv.getUint8(b+29)-128)/128;
+    id[o+12]=(dv.getUint8(b+30)-128)/128;id[o+13]=(dv.getUint8(b+31)-128)/128;
+  }
+  return {id,pos,n};
+}
+
+function parsePly(buf) {
+  const head = new TextDecoder().decode(new Uint8Array(buf,0,Math.min(8192,buf.byteLength)));
+  const endTag='end_header\n', endIdx=head.indexOf(endTag);
+  if(endIdx===-1) throw new Error('Invalid PLY');
+  const nM=head.match(/element vertex (\d+)/);
+  if(!nM) throw new Error('No vertex count');
+  const n=parseInt(nM[1]);
+  const props=[], re=/property float (\w+)/g; let m;
+  while((m=re.exec(head))!==null) props.push(m[1]);
+  const fp=props.length;
+  const headerBytes=new TextEncoder().encode(head.substring(0,endIdx+endTag.length)).length;
+  const body=new DataView(buf,headerBytes);
+  const id=new Float32Array(n*FLOATS), pos=new Float32Array(n*3);
+  const C0=0.28209479177387814;
+  const pi=name=>props.indexOf(name);
+  const pX=pi('x'),pY=pi('y'),pZ=pi('z');
+  const pD0=pi('f_dc_0'),pD1=pi('f_dc_1'),pD2=pi('f_dc_2');
+  const pOp=pi('opacity'),pS0=pi('scale_0'),pS1=pi('scale_1'),pS2=pi('scale_2');
+  const pR0=pi('rot_0'),pR1=pi('rot_1'),pR2=pi('rot_2'),pR3=pi('rot_3');
+  const g=(base,pi)=>pi>=0?body.getFloat32(base+pi*4,true):0;
+  const stride=fp*4;
+  for (let i=0;i<n;i++) {
+    const b=i*stride, o=i*FLOATS;
+    const x=g(b,pX),y=g(b,pY),z=g(b,pZ);
+    id[o]=x;id[o+1]=y;id[o+2]=z; pos[i*3]=x;pos[i*3+1]=y;pos[i*3+2]=z;
+    id[o+3]=Math.max(0,Math.min(1,.5+C0*g(b,pD0)));
+    id[o+4]=Math.max(0,Math.min(1,.5+C0*g(b,pD1)));
+    id[o+5]=Math.max(0,Math.min(1,.5+C0*g(b,pD2)));
+    id[o+6]=1/(1+Math.exp(-g(b,pOp)));
+    id[o+7]=Math.exp(g(b,pS0));id[o+8]=Math.exp(g(b,pS1));id[o+9]=Math.exp(g(b,pS2));
+    id[o+10]=pR0>=0?g(b,pR0):1;id[o+11]=pR1>=0?g(b,pR1):0;
+    id[o+12]=pR2>=0?g(b,pR2):0;id[o+13]=pR3>=0?g(b,pR3):0;
+  }
+  return {id,pos,n};
+}
+
+// ── Camera ────────────────────────────────────────────────
+const cam={theta:.6,phi:.25,radius:5,target:[0,0,0],fov:50*Math.PI/180};
+const sub3=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const dot3=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cross3=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const norm3=v=>{const l=Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2])||1;return[v[0]/l,v[1]/l,v[2]/l]};
+
+function camPos(){
+  const cp=Math.cos(cam.phi);
+  return[cam.target[0]+cam.radius*Math.sin(cam.theta)*cp,
+         cam.target[1]+cam.radius*Math.sin(cam.phi),
+         cam.target[2]+cam.radius*Math.cos(cam.theta)*cp];
+}
+function viewMat(){
+  const eye=camPos(), f=norm3(sub3(cam.target,eye));
+  const r=norm3(cross3(f,[0,1,0])), u=cross3(r,f);
+  const m=new Float32Array(16);
+  m[0]=r[0];m[1]=u[0];m[2]=-f[0];m[3]=0;
+  m[4]=r[1];m[5]=u[1];m[6]=-f[1];m[7]=0;
+  m[8]=r[2];m[9]=u[2];m[10]=-f[2];m[11]=0;
+  m[12]=-dot3(r,eye);m[13]=-dot3(u,eye);m[14]=dot3(f,eye);m[15]=1;
+  return m;
+}
+function projMat(asp){
+  const f=1/Math.tan(cam.fov/2),nf=1/(0.01-1000);
+  const m=new Float32Array(16);
+  m[0]=f/asp;m[5]=f;m[10]=(1000+0.01)*nf;m[11]=-1;m[14]=2*1000*0.01*nf;
+  return m;
+}
+
+// ── Load scene ────────────────────────────────────────────
+let currentSplatUrl = null;
+
+function loadScene(id, pos, count, sizeMB, fmt) {
+  iData=id; posArr=pos; N=count;
+  iSorted=new Float32Array(N*FLOATS);
+  let cx=0,cy=0,cz=0;
+  for(let i=0;i<N;i++){cx+=pos[i*3];cy+=pos[i*3+1];cz+=pos[i*3+2];}
+  cx/=N;cy/=N;cz/=N;
+  let maxD=0;
+  for(let i=0;i<N;i++){
+    const dx=pos[i*3]-cx,dy=pos[i*3+1]-cy,dz=pos[i*3+2]-cz;
+    const d=Math.sqrt(dx*dx+dy*dy+dz*dz);
+    if(d>maxD)maxD=d;
+  }
+  cam.target=[cx,cy,cz];
+  cam.radius=Math.max(.5,maxD*2.5);
+  cam.theta=.6;cam.phi=.25;
+  buildVAO();
+  const vm=viewMat();
+  depthSort(vm);
+  gl.bindBuffer(gl.ARRAY_BUFFER,instBuf);
+  gl.bufferSubData(gl.ARRAY_BUFFER,0,iSorted);
+  scnt.textContent=N.toLocaleString();
+  sfsz.textContent=sizeMB?sizeMB.toFixed(2)+' MB':'—';
+  smem.textContent=((N*STRIDE)/1e6).toFixed(1)+' MB';
+  sfmt.textContent=fmt||'—';
+  lstate.classList.add('hide');
+  setLoad(0);
+  toast_('✓ '+N.toLocaleString()+' Gaussians loaded');
+}
+
+// ── Load from API ─────────────────────────────────────────
+async function loadFromSession(sid) {
+  lsTxt.textContent = 'LOADING SESSION';
+  lsSub.textContent = 'fetching scene info...';
+  setLoad(5);
+
+  try {
+    // Get session info
+    const r = await fetch(`${API}/api/session/${sid}`);
+    if (!r.ok) throw new Error('Session not found');
+    const sess = await r.json();
+
+    document.getElementById('scene-name').textContent =
+      (sess.name || sid).substring(0, 32).toUpperCase();
+    document.getElementById('sid-el').textContent = sid;
+
+    // PSNR from result if available
+    if (sess.result && sess.result['3dgs'] && sess.result['3dgs'].psnr_db) {
+      spsnr.textContent = sess.result['3dgs'].psnr_db.toFixed(2) + ' dB';
+    }
+
+    // Prefer .splat (smaller, web-optimized)
+    let url, fmt;
+    if (sess.has_splat) {
+      url = `${API}/api/file/${sid}/3dgs/scene.splat`;
+      fmt = '.SPLAT';
+    } else if (sess.has_ply) {
+      url = `${API}/api/file/${sid}/3dgs/gaussians_final.ply`;
+      fmt = '.PLY 3DGS';
+    } else {
+      throw new Error('No 3DGS output found for this session (pipeline may still be running)');
+    }
+
+    currentSplatUrl = url;
+    document.getElementById('bdl').onclick = () => {
+      const a=document.createElement('a');
+      a.href=url;a.download='scene_'+sid+(fmt.includes('PLY')?'.ply':'.splat');a.click();
+    };
+
+    lsSub.textContent = 'downloading ' + fmt + '...';
+    setLoad(20);
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('File download failed: ' + res.status);
+    const sizeMB = parseInt(res.headers.get('content-length')||'0') / 1e6;
+
+    // Stream with progress
+    const reader = res.body.getReader();
+    const total = parseInt(res.headers.get('content-length')||'0');
+    let received = 0;
+    const chunks = [];
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.length;
+      if (total > 0) {
+        const pct = 20 + Math.floor((received/total)*55);
+        setLoad(pct);
+        lsSub.textContent = 'downloading... ' + (received/1e6).toFixed(1) + ' MB';
+      }
+    }
+
+    lsSub.textContent = 'parsing...';
+    setLoad(80);
+
+    // Assemble buffer
+    const buf = new Uint8Array(received);
+    let offset = 0;
+    for (const chunk of chunks) { buf.set(chunk, offset); offset+=chunk.length; }
+
+    await new Promise(r => setTimeout(r, 8));
+
+    let parsed;
+    if (fmt.includes('PLY')) {
+      parsed = parsePly(buf.buffer);
+    } else {
+      parsed = parseSplat(buf.buffer);
+    }
+
+    setLoad(95);
+    loadScene(parsed.id, parsed.pos, parsed.n, received/1e6, fmt);
+
+  } catch (err) {
+    lsTxt.textContent = '⚠ ERROR';
+    lsSub.textContent = err.message;
+    setLoad(0);
+    console.error(err);
+  }
+}
+
+// ── Mouse / Touch / Keyboard ──────────────────────────────
+const mouse={lmb:false,rmb:false,x:0,y:0};
+cv.addEventListener('mousedown',e=>{
+  if(e.button===0)mouse.lmb=true; if(e.button===2)mouse.rmb=true;
+  mouse.x=e.clientX;mouse.y=e.clientY;e.preventDefault();
+});
+window.addEventListener('mouseup',e=>{
+  if(e.button===0)mouse.lmb=false;if(e.button===2)mouse.rmb=false;
+});
+window.addEventListener('mousemove',e=>{
+  const dx=e.clientX-mouse.x,dy=e.clientY-mouse.y;
+  mouse.x=e.clientX;mouse.y=e.clientY;
+  if(mouse.lmb){cam.theta-=dx*.005;cam.phi=Math.max(-1.55,Math.min(1.55,cam.phi+dy*.005));}
+  if(mouse.rmb){
+    const eye=camPos(),f=norm3(sub3(cam.target,eye));
+    const r=norm3(cross3(f,[0,1,0])),u=cross3(r,f),sp=cam.radius*.0012;
+    cam.target[0]-=(r[0]*dx-u[0]*dy)*sp;
+    cam.target[1]-=(r[1]*dx-u[1]*dy)*sp;
+    cam.target[2]-=(r[2]*dx-u[2]*dy)*sp;
+  }
+});
+cv.addEventListener('wheel',e=>{
+  e.preventDefault();
+  cam.radius=Math.max(.05,Math.min(500,cam.radius*(1+e.deltaY*.001)));
+},{passive:false});
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+
+let pt={};
+cv.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  for(const t of e.changedTouches)pt[t.identifier]={x:t.clientX,y:t.clientY};
+},{passive:false});
+cv.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(e.changedTouches.length===1&&Object.keys(pt).length===1){
+    const t=e.changedTouches[0],p=pt[t.identifier];
+    if(p){cam.theta-=(t.clientX-p.x)*.005;cam.phi=Math.max(-1.55,Math.min(1.55,cam.phi+(t.clientY-p.y)*.005));
+          pt[t.identifier]={x:t.clientX,y:t.clientY};}
+  }
+  if(e.touches.length===2){
+    const a=e.touches[0],b=e.touches[1];
+    const d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
+    if(pt._pd)cam.radius=Math.max(.05,cam.radius*(pt._pd/d));
+    pt._pd=d;
+  }
+},{passive:false});
+cv.addEventListener('touchend',e=>{
+  for(const t of e.changedTouches)delete pt[t.identifier];
+  if(e.touches.length<2)delete pt._pd;
+});
+window.addEventListener('keydown',e=>{
+  if(e.key==='r'||e.key==='R'){cam.theta=.6;cam.phi=.25;}
+  if(e.key==='f'||e.key==='F'){cam.theta=.6;cam.phi=.25;}
+});
+
+// ── Resize ────────────────────────────────────────────────
+function resize(){
+  cv.width=window.innerWidth;cv.height=window.innerHeight;
+  gl.viewport(0,0,cv.width,cv.height);
+}
+window.addEventListener('resize',resize);
+resize();
+
+// ── Render loop ───────────────────────────────────────────
+const SORT_EVERY=2;
+let frame=0,fCount=0,fLast=performance.now();
+
+function render(now){
+  requestAnimationFrame(render);
+  gl.clearColor(.008,.016,.031,1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  if(!vao||N===0)return;
+  const W=cv.width,H=cv.height,asp=W/H;
+  const vm=viewMat(), pm=projMat(asp);
+  const fy=H/(2*Math.tan(cam.fov/2));
+  const t0=performance.now();
+  if(frame%SORT_EVERY===0)depthSort(vm);
+  const sortMs=(performance.now()-t0).toFixed(1);
+  gl.bindBuffer(gl.ARRAY_BUFFER,instBuf);
+  gl.bufferSubData(gl.ARRAY_BUFFER,0,iSorted);
+  gl.enable(gl.BLEND);
+  gl.blendFuncSeparate(gl.ONE,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
+  gl.disable(gl.DEPTH_TEST);
+  gl.useProgram(prog);
+  gl.bindVertexArray(vao);
+  gl.uniformMatrix4fv(U.uV,false,vm);
+  gl.uniformMatrix4fv(U.uP,false,pm);
+  gl.uniform2f(U.uVP,W,H);
+  gl.uniform1f(U.uFx,fy);
+  gl.uniform1f(U.uFy,fy);
+  gl.drawArraysInstanced(gl.TRIANGLES,0,6,N);
+  gl.bindVertexArray(null);
+  fCount++;frame++;
+  const dt=now-fLast;
+  if(dt>=600){
+    const fps=Math.round(fCount*1000/dt);
+    sfps.textContent=fps;
+    sfps.className='val '+(fps<25?'vm':fps<45?'va':'vg');
+    fpsf.style.width=Math.min(100,fps/60*100)+'%';
+    ssrt.textContent=sortMs+' ms';
+    scam.textContent=cam.radius.toFixed(2);
+    fCount=0;fLast=now;
+  }
+}
+requestAnimationFrame(render);
+
+// ── UI helpers ────────────────────────────────────────────
+function setLoad(pct){
+  lb.classList.toggle('on',pct>0&&pct<100);
+  lf.style.width=pct+'%';
+  if(pct>=100)setTimeout(()=>lb.classList.remove('on'),500);
+}
+let toastTmr;
+function toast_(msg){
+  toast.textContent=msg;toast.classList.add('on');
+  clearTimeout(toastTmr);toastTmr=setTimeout(()=>toast.classList.remove('on'),3200);
+}
+
+// Screenshot
+document.getElementById('bss').addEventListener('click',()=>{
+  const a=document.createElement('a');
+  a.download='splatforge_'+SESSION_ID+'_'+Date.now()+'.png';
+  a.href=cv.toDataURL('image/png');a.click();
+  toast_('Screenshot saved ✓');
+});
+
+// ── Auto-load session ─────────────────────────────────────
+if (SESSION_ID && SESSION_ID !== '{{SESSION_ID}}') {
+  loadFromSession(SESSION_ID);
+} else {
+  lsTxt.textContent = 'NO SESSION';
+  lsSub.textContent = 'no session ID provided';
+}
+</script>
+</body>
+</html>
