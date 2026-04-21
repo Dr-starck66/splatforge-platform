@@ -1,5 +1,7 @@
 # SPLAT·FORGE Platform — Guide de Déploiement GPU
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Dr-starck66/splatforge-platform/blob/main/SplatForge_Colab.ipynb)
+
 Ce projet est une plateforme de reconstruction 3D (3D Gaussian Splatting) utilisant FastAPI, Docker et COLMAP. Pour fonctionner correctement, il nécessite un serveur équipé d'un **GPU NVIDIA**.
 
 ## 🚀 Prérequis du Serveur
