@@ -11,29 +11,16 @@ Ce projet est une plateforme de reconstruction 3D (3D Gaussian Splatting) utilis
 
 ## 🛠️ Installation étape par étape
 
-### 1. Installation des pilotes NVIDIA et Docker
+### 1. Installation Automatisée (Recommandé)
 
-Si votre serveur est vierge, exécutez ces commandes pour installer les composants nécessaires :
+Si votre serveur est vierge, utilisez le script d'installation fourni pour configurer Docker, les pilotes NVIDIA et le NVIDIA Container Toolkit en une seule commande :
 
 ```bash
-# Mise à jour du système
-sudo apt update && sudo apt upgrade -y
-
-# Installation de Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-
-# Installation du NVIDIA Container Toolkit (indispensable pour le GPU dans Docker)
-curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
-  && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
-    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-    sudo tee /etc/nginx/conf.d/nvidia-container-toolkit.list \
-  && sudo apt-get update \
-  && sudo apt-get install -y nvidia-container-toolkit
-
-# Redémarrer Docker pour appliquer les changements
-sudo systemctl restart docker
+chmod +x install_gpu_runtime.sh
+./install_gpu_runtime.sh
 ```
+
+*Note : Un redémarrage du serveur peut être nécessaire après l'installation des pilotes.*
 
 ### 2. Clonage et Lancement
 
