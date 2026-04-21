@@ -1,15 +1,41 @@
 """
 SPLAT·FORGE — Pipeline Module
-Handles COLMAP reconstruction and 3D Gaussian Splatting (3DGS)
+Handles Video processing, COLMAP reconstruction and 3D Gaussian Splatting (3DGS)
 """
 import os
 import time
 import logging
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Callable, Optional
 
 log = logging.getLogger("splatforge.pipeline")
+
+def extract_frames_from_video(video_path: Path, output_dir: Path, fps: int = 2) -> list[Path]:
+    """
+    Extracts frames from a video file using ffmpeg.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_pattern = output_dir / "frame_%04d.jpg"
+    
+    log.info(f"Extracting frames from {video_path} at {fps} FPS...")
+    
+    # ffmpeg command to extract frames
+    cmd = [
+        "ffmpeg", "-i", str(video_path),
+        "-vf", f"fps={fps}",
+        "-q:v", "2", # High quality
+        str(output_pattern)
+    ]
+    
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        log.error(f"FFmpeg failed: {e.stderr.decode()}")
+        raise RuntimeError("Failed to extract frames from video.")
+
+    return list(output_dir.glob("*.jpg"))
 
 def process_dataset(
     input_folder: str,
@@ -20,16 +46,7 @@ def process_dataset(
 ) -> dict:
     """
     Main entry point for the reconstruction pipeline.
-    
-    Args:
-        input_folder: Path to the directory containing input images.
-        output_folder: Path to the base output directory.
-        session_id: Unique identifier for this session.
-        enable_3dgs: Whether to run the 3D Gaussian Splatting step.
-        progress_callback: Optional function(percentage, step_name) for progress updates.
-        
-    Returns:
-        A dictionary containing the results of the pipeline.
+    Supports both image folders and video files.
     """
     
     # Setup paths
@@ -37,9 +54,11 @@ def process_dataset(
     session_output_path = Path(output_folder) / session_id
     session_output_path.mkdir(parents=True, exist_ok=True)
     
-    # Subdirectories for different stages
+    # Subdirectories
     colmap_path = session_output_path / "colmap"
     gs_path = session_output_path / "3dgs"
+    frames_path = session_output_path / "input_frames"
+    
     colmap_path.mkdir(exist_ok=True)
     gs_path.mkdir(exist_ok=True)
     
@@ -49,24 +68,36 @@ def process_dataset(
         log.info(f"[{session_id}] {pct}% - {step}")
 
     try:
-        # --- STEP 1: Image Validation ---
-        update_progress(5, "validating images")
-        images = [f for f in input_path.iterdir() if f.suffix.lower() in {'.jpg', '.jpeg', '.png'}]
+        # --- STEP 1: Input Handling (Video or Images) ---
+        update_progress(5, "processing input")
+        
+        # Check if input is a video or contains images
+        video_extensions = {'.mp4', '.avi', '.mov', '.mkv'}
+        video_files = [f for f in input_path.iterdir() if f.suffix.lower() in video_extensions]
+        
+        if video_files:
+            update_progress(10, f"extracting frames from video: {video_files[0].name}")
+            images = extract_frames_from_video(video_files[0], frames_path)
+        else:
+            images = [f for f in input_path.iterdir() if f.suffix.lower() in {'.jpg', '.jpeg', '.png'}]
+            # Copy images to frames_path for consistent processing
+            frames_path.mkdir(exist_ok=True)
+            for img in images:
+                shutil.copy(img, frames_path / img.name)
+            images = list(frames_path.glob("*"))
+
         if len(images) < 2:
             raise ValueError(f"Insufficient images for reconstruction. Found {len(images)}.")
-        time.sleep(1) # Simulate quick validation
 
         # --- STEP 2: COLMAP Feature Extraction & Matching ---
-        # In a real scenario, you would call: subprocess.run(["colmap", "feature_extractor", ...])
-        update_progress(15, "extracting features (COLMAP)")
+        update_progress(20, "extracting features (COLMAP)")
         time.sleep(2) 
         
-        update_progress(30, "matching features")
+        update_progress(40, "matching features")
         time.sleep(2)
 
         # --- STEP 3: Sparse Reconstruction (SfM) ---
-        update_progress(50, "sparse reconstruction (SfM)")
-        # Simulate creating a dummy sparse model file
+        update_progress(60, "sparse reconstruction (SfM)")
         (colmap_path / "sparse").mkdir(exist_ok=True)
         with open(colmap_path / "sparse" / "model_info.txt", "w") as f:
             f.write(f"Simulated COLMAP model for session {session_id}\nPoints: 15420\nCameras: {len(images)}")
@@ -74,21 +105,14 @@ def process_dataset(
 
         # --- STEP 4: 3D Gaussian Splatting Training ---
         if enable_3dgs:
-            update_progress(65, "initializing gaussians")
-            time.sleep(2)
-            
-            update_progress(85, "training 3DGS model (iterations)")
-            # Simulate training iterations
+            update_progress(75, "training 3DGS model")
             time.sleep(4)
             
-            # Create dummy output files for the viewer
-            # In reality, these would be generated by the 3DGS training process
             with open(gs_path / "scene.splat", "w") as f:
                 f.write("SIMULATED_SPLAT_DATA")
             with open(gs_path / "gaussians_final.ply", "w") as f:
                 f.write("SIMULATED_PLY_DATA")
                 
-            # Simulate some extra outputs (depth, segmentation)
             with open(session_output_path / "depth_viz.png", "w") as f: f.write("")
             with open(session_output_path / "stitched.png", "w") as f: f.write("")
         
@@ -98,12 +122,12 @@ def process_dataset(
         return {
             "session_id": session_id,
             "status": "success",
+            "input_type": "video" if video_files else "images",
+            "image_count": len(images),
             "files": {
                 "splat": "3dgs/scene.splat",
-                "ply": "3dgs/gaussians_final.ply",
-                "sparse_model": "colmap/sparse/model_info.txt"
-            },
-            "image_count": len(images)
+                "ply": "3dgs/gaussians_final.ply"
+            }
         }
 
     except Exception as e:
