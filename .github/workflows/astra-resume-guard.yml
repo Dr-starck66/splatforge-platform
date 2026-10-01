@@ -1,0 +1,13 @@
+name: ASTRA RESUME GUARD Ω
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resume-guard:
+    uses: Dr-starck66/betgpt-railway/.github/workflows/astra-resume-guard-reusable.yml@main
