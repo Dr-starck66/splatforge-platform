@@ -1,0 +1,108 @@
+name: ASTRA ZERO-COST GUARD
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  zero-cost:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce zero-extra-spend policy
+        shell: python
+        run: |
+          import json, pathlib, re, sys
+
+          cfg_path = pathlib.Path("config/astra-zero-cost.json")
+          if not cfg_path.exists():
+              print("ASTRA_ZERO_COST_FAIL missing config/astra-zero-cost.json")
+              sys.exit(1)
+
+          cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+          checks = [
+              (cfg.get("mode") == "ZERO_EXTRA_SPEND_UNTIL_EXPLICIT_OVERRIDE", "mode"),
+              (cfg.get("defaultBudgetEur") == 0, "defaultBudgetEur"),
+              (cfg.get("allowNewPaidSubscriptionByDefault") is False, "new paid subscription default"),
+              (cfg.get("allowCreditTopUpByDefault") is False, "credit top-up default"),
+              (cfg.get("allowPayPerCallCriticalDependencyByDefault") is False, "pay-per-call default"),
+              (cfg.get("failurePolicy") == "NEVER_REQUIRE_PAYMENT_WITHOUT_EXPLICIT_USER_OVERRIDE", "failurePolicy"),
+          ]
+          for ok, label in checks:
+              if not ok:
+                  print("ASTRA_ZERO_COST_FAIL invalid", label)
+                  sys.exit(1)
+
+          p = cfg.get("paidExceptionPolicy") or {}
+          required = {
+              "mode": "ONLY_IF_MASSIVE_UNLOCK",
+              "requiredImpactLevel": "TRANSFORMATIVE",
+              "minimumEvidence": "CONCRETE_AND_MEASURABLE",
+              "requireExplicitUserApproval": True,
+              "requireFreePathsExhausted": True,
+              "requireMaxBudgetEur": True,
+              "requireProviderScope": True,
+              "requireReason": True,
+              "requireStopCondition": True,
+              "rejectMarginalImprovements": True,
+              "rejectConvenienceOnly": True,
+              "autoPurchase": False,
+              "autoTopUp": False,
+          }
+          for key, expected in required.items():
+              if p.get(key) != expected:
+                  print("ASTRA_ZERO_COST_FAIL invalid paid exception policy", key)
+                  sys.exit(1)
+
+          overrides = {
+              str(x.get("provider","")).lower()
+              for x in cfg.get("explicitPaidOverrides", [])
+              if isinstance(x, dict)
+          }
+
+          blocked = {
+              "firecrawl": ["firecrawl", "@mendable/firecrawl-js", "FIRECRAWL_"],
+              "apify": ["apify", "APIFY_"],
+              "serpapi": ["serpapi", "SERPAPI_"],
+              "brightdata": ["brightdata", "BRIGHTDATA_"],
+              "scrapingbee": ["scrapingbee", "SCRAPINGBEE_"],
+              "zenrows": ["zenrows", "ZENROWS_"],
+              "diffbot": ["diffbot", "DIFFBOT_"],
+          }
+
+          candidates = []
+          for root in [".github", "src", "server", "app", "scripts", "config"]:
+              rp = pathlib.Path(root)
+              if rp.exists():
+                  candidates.extend(p for p in rp.rglob("*") if p.is_file())
+          for name in ["package.json","pyproject.toml","requirements.txt","requirements-dev.txt","Pipfile","Dockerfile"]:
+              pth = pathlib.Path(name)
+              if pth.exists():
+                  candidates.append(pth)
+
+          allowed_suffixes = {".json",".toml",".txt",".yaml",".yml",".js",".jsx",".mjs",".cjs",".ts",".tsx",".py",".env",""}
+          for file in sorted(set(candidates)):
+              rel = file.as_posix()
+              if rel in {"config/astra-zero-cost.json",".github/workflows/astra-zero-cost.yml"}:
+                  continue
+              if file.suffix not in allowed_suffixes and file.name not in {"Dockerfile","Pipfile"}:
+                  continue
+              try:
+                  text = file.read_text(encoding="utf-8", errors="ignore")
+              except Exception:
+                  continue
+              low = text.lower()
+              for provider, markers in blocked.items():
+                  if provider in overrides:
+                      continue
+                  for marker in markers:
+                      if marker.lower() in low:
+                          print(f"ASTRA_ZERO_COST_FAIL unapproved paid/credit-metered provider {provider} marker {marker} in {rel}")
+                          sys.exit(1)
+
+          print("ASTRA ZERO COST GUARD PASS — default extra spend €0; paid exception only if TRANSFORMATIVE and explicitly approved.")
