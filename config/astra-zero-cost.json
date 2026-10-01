@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "mode": "ZERO_EXTRA_SPEND_UNTIL_EXPLICIT_OVERRIDE",
+  "defaultBudgetEur": 0,
+  "allowExistingPaidSubscriptions": true,
+  "allowFreeTier": true,
+  "allowOpenSource": true,
+  "allowSelfHosted": true,
+  "allowPublicWeb": true,
+  "allowNewPaidSubscriptionByDefault": false,
+  "allowCreditTopUpByDefault": false,
+  "allowPayPerCallCriticalDependencyByDefault": false,
+  "explicitPaidOverrides": [],
+  "paidExceptionPolicy": {
+    "mode": "ONLY_IF_MASSIVE_UNLOCK",
+    "requiredImpactLevel": "TRANSFORMATIVE",
+    "minimumEvidence": "CONCRETE_AND_MEASURABLE",
+    "requireExplicitUserApproval": true,
+    "requireFreePathsExhausted": true,
+    "requireMaxBudgetEur": true,
+    "requireProviderScope": true,
+    "requireReason": true,
+    "requireStopCondition": true,
+    "rejectMarginalImprovements": true,
+    "rejectConvenienceOnly": true,
+    "autoPurchase": false,
+    "autoTopUp": false
+  },
+  "fallbackOrder": [
+    "already_included",
+    "public_web",
+    "free_tier",
+    "open_source",
+    "self_hosted",
+    "degrade_gracefully"
+  ],
+  "failurePolicy": "NEVER_REQUIRE_PAYMENT_WITHOUT_EXPLICIT_USER_OVERRIDE"
+}
