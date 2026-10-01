@@ -1,0 +1,67 @@
+name: ASTRA SAFE WRITE Ω
+
+on:
+  workflow_call:
+    inputs:
+      path:
+        required: true
+        type: string
+      mode:
+        required: true
+        type: string
+      content_b64:
+        required: false
+        type: string
+        default: ""
+      needle_b64:
+        required: false
+        type: string
+        default: ""
+      replacement_b64:
+        required: false
+        type: string
+        default: ""
+      commit_message:
+        required: false
+        type: string
+        default: "chore(astra): safe reconciled write"
+  workflow_dispatch:
+    inputs:
+      path:
+        required: true
+        type: string
+      mode:
+        required: true
+        type: choice
+        options:
+          - write_if_absent
+          - replace_exact
+          - ensure_block
+          - replace_file
+      content_b64:
+        required: false
+        type: string
+      needle_b64:
+        required: false
+        type: string
+      replacement_b64:
+        required: false
+        type: string
+      commit_message:
+        required: false
+        default: "chore(astra): safe reconciled write"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  safe-write:
+    uses: Dr-starck66/betgpt-railway/.github/workflows/astra-safe-write-reusable.yml@main
+    with:
+      path: ${{ inputs.path }}
+      mode: ${{ inputs.mode }}
+      content_b64: ${{ inputs.content_b64 }}
+      needle_b64: ${{ inputs.needle_b64 }}
+      replacement_b64: ${{ inputs.replacement_b64 }}
+      commit_message: ${{ inputs.commit_message }}
