@@ -37,6 +37,7 @@ RUN pip install -r requirements.txt
 
 # ── App ────────────────────────────────────────────────────
 COPY app/ ./app/
+COPY tools/ ./tools/
 
 EXPOSE 8000
 
