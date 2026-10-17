@@ -1,0 +1,1 @@
+"""ASTRA native computing bridge: real physics and bounded 3DGS CPU rendering."""
