@@ -85,6 +85,7 @@ _load_sessions()
 
 # SSE event queues per session
 sse_queues: dict[str, list[asyncio.Queue]] = {}
+main_loop: asyncio.AbstractEventLoop | None = None
 
 # ── App ────────────────────────────────────────────────────
 app = FastAPI(
@@ -115,13 +116,16 @@ def session_update(sid: str, **kwargs):
 
 def _broadcast(sid: str, payload: dict):
     """Push SSE event to all listeners of this session."""
-    queues = sse_queues.get(sid, [])
     msg = json.dumps(payload)
-    for q in queues:
-        try:
-            q.put_nowait(msg)
-        except asyncio.QueueFull:
-            pass
+    def push_on_loop():
+        for q in tuple(sse_queues.get(sid, [])):
+            try:
+                q.put_nowait(msg)
+            except asyncio.QueueFull:
+                pass
+    # asyncio.Queue cannot be safely mutated from the background worker thread.
+    if main_loop is not None and main_loop.is_running():
+        main_loop.call_soon_threadsafe(push_on_loop)
 
 
 def progress_cb(sid: str):
@@ -363,6 +367,8 @@ async def serve_file(sid: str, filepath: str):
 @app.on_event("startup")
 async def recover_interrupted_sessions():
     """Resume interrupted persisted uploads after a server restart."""
+    global main_loop
+    main_loop = asyncio.get_running_loop()
     for sid, item in list(sessions.items()):
         if item.get("status") in {"queued", "running"}:
             source = UPLOAD_DIR / sid
