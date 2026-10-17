@@ -1,4 +1,4 @@
-"""Fail-closed regression tests; do not require a GPU or pretend to train a model."""
+"""Negative production gates. Synthetic COLMAP fixtures are never treated as real reconstruction evidence."""
 import os
 import tempfile
 import unittest
@@ -27,15 +27,32 @@ class Real3DGSProofGate(unittest.TestCase):
             enable_3dgs=True,
         )
 
+    @staticmethod
+    def emulate_colmap(cmd, cwd=None):
+        if len(cmd) > 1 and cmd[1] == "mapper":
+            sparse = Path(cmd[cmd.index("--output_path") + 1]) / "0"
+            sparse.mkdir(parents=True, exist_ok=True)
+            (sparse / "cameras.bin").write_bytes(b"fixture-not-a-real-camera-file")
+        return ""
+
     @patch.object(pipeline, "run_command", return_value="")
+    def test_empty_colmap_reconstruction_must_fail(self, mocked):
+        with self.assertRaisesRegex(RuntimeError, "COLMAP_EMPTY_RECONSTRUCTION"):
+            self.invoke()
+        self.assertFalse(list(self.outputs.rglob("*.splat")))
+
+    @patch.object(pipeline, "run_command")
     def test_missing_gpu_trainer_never_produces_fake_splat(self, mocked):
+        mocked.side_effect = self.emulate_colmap
         with patch.dict(os.environ, {"SPLATFORGE_TRAIN_SCRIPT": ""}):
             with self.assertRaisesRegex(RuntimeError, "REAL_3DGS_UNAVAILABLE"):
                 self.invoke()
         self.assertFalse(list(self.outputs.rglob("*.splat")))
+        self.assertTrue(list(self.outputs.rglob("images")))
 
-    @patch.object(pipeline, "run_command", return_value="")
+    @patch.object(pipeline, "run_command")
     def test_no_training_output_cannot_be_reported_as_success(self, mocked):
+        mocked.side_effect = self.emulate_colmap
         script = self.root / "train.py"
         script.write_text("# test fixture only")
         with patch.dict(os.environ, {"SPLATFORGE_TRAIN_SCRIPT": str(script)}):
