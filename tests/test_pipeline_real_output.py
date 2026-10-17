@@ -33,6 +33,7 @@ class Real3DGSProofGate(unittest.TestCase):
             sparse = Path(cmd[cmd.index("--output_path") + 1]) / "0"
             sparse.mkdir(parents=True, exist_ok=True)
             (sparse / "cameras.bin").write_bytes(b"fixture-not-a-real-camera-file")
+            (sparse / "points3D.bin").write_bytes(b"fixture-not-a-real-point-file")
         return ""
 
     @patch.object(pipeline, "run_command", return_value="")
@@ -42,9 +43,9 @@ class Real3DGSProofGate(unittest.TestCase):
         self.assertFalse(list(self.outputs.rglob("*.splat")))
 
     @patch.object(pipeline, "run_command")
-    def test_missing_gpu_trainer_never_produces_fake_splat(self, mocked):
+    def test_bad_external_trainer_never_produces_fake_splat(self, mocked):
         mocked.side_effect = self.emulate_colmap
-        with patch.dict(os.environ, {"SPLATFORGE_TRAIN_SCRIPT": ""}):
+        with patch.dict(os.environ, {"SPLATFORGE_TRAIN_SCRIPT": str(self.root / "missing-trainer.py")}):
             with self.assertRaisesRegex(RuntimeError, "REAL_3DGS_UNAVAILABLE"):
                 self.invoke()
         self.assertFalse(list(self.outputs.rglob("*.splat")))
