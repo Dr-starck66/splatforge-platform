@@ -113,24 +113,42 @@ def process_dataset(
         ])
 
         # --- STEP 3: 3D Gaussian Splatting ---
+        # Never manufacture a fake .splat, even when COLMAP succeeds.
+        model_relpath = None
         if enable_3dgs:
-            update_progress(75, "3DGS: Training model")
-            # This assumes a training script or library is available. 
-            # Using gsplat/simple-trainer style logic:
-            try:
-                # In a real setup, you'd call your 3DGS training script here
-                # Example: run_command(["python", "train.py", "-s", str(session_output_path), "-m", str(gs_path)])
-                
-                # For this template, we ensure the output directory structure is ready
-                (gs_path / "point_cloud").mkdir(exist_ok=True)
-                
-                # Simulate output for the viewer (replace with real training output)
-                # In production, the trainer would save 'iteration_7000.splat' etc.
-                dummy_splat = gs_path / "scene.splat"
-                dummy_splat.write_text("REAL_GPU_DATA_PLACEHOLDER")
-                
-            except Exception as gs_err:
-                log.warning(f"3DGS Training failed, but SfM succeeded: {gs_err}")
+            update_progress(75, "3DGS: Checking the real trainer")
+            trainer = os.environ.get("SPLATFORGE_TRAIN_SCRIPT", "").strip()
+            if not trainer or not Path(trainer).is_file():
+                raise RuntimeError(
+                    "REAL_3DGS_UNAVAILABLE: configure SPLATFORGE_TRAIN_SCRIPT "
+                    "to an installed, GPU-compatible training script; no model was generated"
+                )
+            update_progress(80, "3DGS: Training actual Gaussian model")
+            run_command([
+                "python", str(Path(trainer).resolve()),
+                "-s", str(session_output_path),
+                "-m", str(gs_path),
+            ])
+            candidates = sorted(
+                [*gs_path.rglob("*.splat"), *gs_path.rglob("*.ply")],
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+            genuine = []
+            for candidate in candidates:
+                if not candidate.is_file() or candidate.stat().st_size < 32:
+                    continue
+                if candidate.suffix == ".splat" and candidate.stat().st_size % 32 != 0:
+                    continue
+                if candidate.suffix == ".ply" and not candidate.read_bytes()[:4] == b"ply\\n":
+                    continue
+                genuine.append(candidate)
+            if not genuine:
+                raise RuntimeError(
+                    "REAL_3DGS_OUTPUT_MISSING: training ended but no valid model artifact "
+                    "was found; refusing a false success"
+                )
+            model_relpath = str(genuine[0].relative_to(session_output_path))
 
         update_progress(100, "Pipeline complete")
         
@@ -141,11 +159,12 @@ def process_dataset(
             "image_count": len(images),
             "outputs": {
                 "sparse": str(sparse_path),
-                "splat": "3dgs/scene.splat"
+                "splat": model_relpath if model_relpath and model_relpath.endswith(".splat") else None,
+                "model": model_relpath,
             }
         }
 
     except Exception as e:
         log.error(f"Pipeline failed: {str(e)}")
         update_progress(0, f"Error: {str(e)}")
-        raise e
+        raise
