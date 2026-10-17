@@ -42,7 +42,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Supported input extensions
-SUPPORTED_EXT = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff", ".tif"}
+SUPPORTED_EXT = {".jpg", ".jpeg", ".png"}  # matches COLMAP and pipeline input formats
 
 # ── In-memory session store (swap for Redis in prod) ──────
 # sessions[sid] = {
@@ -56,6 +56,32 @@ SUPPORTED_EXT = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff", ".tif"}
 #   name: str
 # }
 sessions: dict[str, dict] = {}
+
+def _save_session(sid: str):
+    """Persist session to disk atomically; same output volume holds its results."""
+    folder = OUTPUT_DIR / sid
+    folder.mkdir(parents=True, exist_ok=True)
+    tmp = folder / f".session.{uuid.uuid4().hex}.tmp"
+    try:
+        tmp.write_text(json.dumps(sessions[sid], ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, folder / "session.json")
+    finally:
+        tmp.unlink(missing_ok=True)
+
+def _load_sessions():
+    for statefile in OUTPUT_DIR.glob("*/session.json"):
+        try:
+            sid = statefile.parent.name
+            if not sid.isalnum():
+                continue
+            data = json.loads(statefile.read_text(encoding="utf-8"))
+            if not isinstance(data, dict) or "status" not in data:
+                continue
+            sessions[sid] = data
+        except (ValueError, OSError) as exc:
+            log.warning("Skipping unreadable session %s: %s", statefile, exc)
+
+_load_sessions()
 
 # SSE event queues per session
 sse_queues: dict[str, list[asyncio.Queue]] = {}
@@ -82,6 +108,7 @@ def session_update(sid: str, **kwargs):
     """Update session state and broadcast SSE event."""
     if sid in sessions:
         sessions[sid].update(kwargs)
+        _save_session(sid)
         _broadcast(sid, {k: v for k, v in sessions[sid].items()
                          if k != "result"} | {"sid": sid})
 
@@ -114,7 +141,7 @@ def _run_pipeline(sid: str, session_path: Path):
         session_update(sid, status="running", progress=2, step="initializing")
 
         # Lazy import so startup is instant
-        from pipeline import process_dataset  # noqa: PLC0415
+        from app.pipeline import process_dataset  # noqa: PLC0415
 
         result = process_dataset(
             input_folder=str(session_path),
@@ -172,10 +199,10 @@ async def upload(
     """Upload images and start the pipeline."""
     # Validate
     valid = [f for f in files if Path(f.filename).suffix.lower() in SUPPORTED_EXT]
-    if len(valid) < 2:
+    if len(valid) < 5:
         raise HTTPException(
             400,
-            f"Need ≥ 2 supported images "
+            f"Need ≥ 5 supported images "
             f"({', '.join(sorted(SUPPORTED_EXT))}). Got {len(valid)}.",
         )
 
@@ -185,8 +212,12 @@ async def upload(
 
     # Save files
     saved = []
+    used_names: set[str] = set()
     for f in valid:
         safe_name = Path(f.filename).name
+        if safe_name in used_names:
+            raise HTTPException(400, "Duplicate image filenames are not allowed")
+        used_names.add(safe_name)
         dest = session_path / safe_name
         with open(dest, "wb") as buf:
             shutil.copyfileobj(f.file, buf)
@@ -206,14 +237,10 @@ async def upload(
         "files": saved,
     }
 
-    # Fire pipeline in thread pool (avoids blocking the event loop)
-    background_tasks.add_task(
-        asyncio.get_event_loop().run_in_executor,
-        None,
-        _run_pipeline,
-        sid,
-        session_path,
-    )
+    # Starlette dispatches synchronous BackgroundTasks in a thread pool.
+    # Do not invoke get_event_loop from a worker thread (there is no loop).
+    _save_session(sid)
+    background_tasks.add_task(_run_pipeline, sid, session_path)
 
     log.info(f"[{sid}] Session created — {len(saved)} images")
     return {"sid": sid, "files": len(saved), "status": "queued"}
@@ -260,6 +287,8 @@ async def get_session(sid: str):
 async def delete_session(sid: str):
     if sid not in sessions:
         raise HTTPException(404, "Session not found")
+    if sessions[sid]["status"] in {"queued", "running"}:
+        raise HTTPException(409, "Cannot delete an active job")
     sessions.pop(sid, None)
     sse_queues.pop(sid, None)
     # Clean up files
@@ -331,6 +360,19 @@ async def serve_file(sid: str, filepath: str):
 
 
 # ── Health ─────────────────────────────────────────────────
+@app.on_event("startup")
+async def recover_interrupted_sessions():
+    """Resume interrupted persisted uploads after a server restart."""
+    for sid, item in list(sessions.items()):
+        if item.get("status") in {"queued", "running"}:
+            source = UPLOAD_DIR / sid
+            if not source.exists():
+                session_update(sid, status="error", step="failed", error="INPUT_LOST_AFTER_RESTART")
+                continue
+            session_update(sid, status="queued", step="recovered_after_restart")
+            asyncio.create_task(asyncio.to_thread(_run_pipeline, sid, source))
+
+
 @app.get("/api/health")
 async def health():
     import torch  # noqa: PLC0415
@@ -344,7 +386,13 @@ async def health():
 
 # ── Helpers ────────────────────────────────────────────────
 def _has_file(sid: str, rel: str) -> bool:
-    return (OUTPUT_DIR / sid / rel).exists()
+    if sid not in sessions:
+        return False
+    base = (OUTPUT_DIR / sid).resolve()
+    target = (base / rel).resolve()
+    if not target.is_relative_to(base):
+        return False
+    return target.is_file()
 
 
 # ══════════════════════════════════════════════════════════
