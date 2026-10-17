@@ -140,7 +140,11 @@ def process_dataset(
                     continue
                 if candidate.suffix == ".splat" and candidate.stat().st_size % 32 != 0:
                     continue
-                if candidate.suffix == ".ply" and not candidate.read_bytes()[:4] == b"ply\\n":
+                with candidate.open("rb") as model_file:
+                    header = model_file.read(64)
+                if b"REAL_GPU_DATA_PLACEHOLDER" in header:
+                    continue
+                if candidate.suffix == ".ply" and not header.startswith(b"ply\n"):
                     continue
                 genuine.append(candidate)
             if not genuine:
