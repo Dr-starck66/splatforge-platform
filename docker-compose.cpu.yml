@@ -1,0 +1,15 @@
+# CPU only. Runs on existing host capacity, does not request an NVIDIA GPU.
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+    image: splatforge-cpu
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      SPLATFORGE_COLMAP_USE_GPU: "0"
+      PYTHONUNBUFFERED: "1"
