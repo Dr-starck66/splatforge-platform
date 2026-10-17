@@ -46,7 +46,7 @@ Une fois lancé, l'application est accessible sur :
 
 ## ⚠️ Note Importante sur `pipeline.py`
 
-Le fichier `app/pipeline.py` est actuellement manquant dans ce dépôt. Ce fichier est crucial car il contient la logique de traitement COLMAP et 3DGS. Assurez-vous de l'ajouter dans le dossier `app/` pour que le traitement des images fonctionne.
+Le fichier `app/pipeline.py` est présent et lance le pipeline COLMAP. **Un entraînement 3DGS réel n'est pas inclus dans ce dépôt** et nécessite un script externe installé sur un GPU NVIDIA compatible. Configurer la variable `SPLATFORGE_TRAIN_SCRIPT` avec le chemin de ce script (interface attendue `-s SOURCE -m MODEL_DIR`). Sans script d'entraînement, le moteur échoue explicitement avec `REAL_3DGS_UNAVAILABLE` : **il ne crée plus de faux modèle `.splat` et n'annonce plus de réussite artificielle**. Un script sans modèle produit `REAL_3DGS_OUTPUT_MISSING`. Tests de non-régression : `python -m unittest discover -s tests -p 'test_pipeline_real_output.py' -v` (les tests simulent COLMAP et ne prouvent pas un rendu GPU). Le test GPU bout en bout reste nécessaire avant PASS fonctionnel.
 
 ## 🐳 Gestion des conteneurs
 
