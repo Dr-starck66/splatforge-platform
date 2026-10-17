@@ -1,0 +1,15 @@
+# Zero-GPU alternative, compatible with an already-owned CPU Linux server.
+FROM python:3.11-slim-bookworm
+ENV DEBIAN_FRONTEND=noninteractive PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+RUN apt-get update && apt-get install -y --no-install-recommends colmap ffmpeg libgl1 libglib2.0-0 libgomp1 curl \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+RUN pip install --no-cache-dir "numpy<2" "Pillow>=10,<12" "fastapi==0.111.0" \
+    "uvicorn[standard]==0.29.0" "python-multipart==0.0.9" "aiofiles==23.2.1" \
+    && pip install --no-cache-dir torch==2.2.2 --index-url https://download.pytorch.org/whl/cpu
+COPY app/ ./app/
+COPY tools/ ./tools/
+RUN mkdir -p data/uploads data/outputs
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 CMD curl --fail http://127.0.0.1:8000/api/health || exit 1
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
