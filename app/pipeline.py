@@ -106,6 +106,7 @@ def process_dataset(
             "--database_path", str(database_path),
             "--image_path", str(frames_path),
             "--ImageReader.single_camera", "1",
+            "--ImageReader.camera_model", "PINHOLE",
             "--SiftExtraction.use_gpu", use_gpu
         ])
         
