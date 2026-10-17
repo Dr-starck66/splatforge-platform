@@ -11,6 +11,8 @@ import subprocess
 from pathlib import Path
 from typing import Callable, Optional
 
+from app.gs_adapter import find_colmap_model, prepare_graphdeco_dataset
+
 log = logging.getLogger("splatforge.pipeline")
 
 def run_command(cmd: list[str], cwd: Optional[Path] = None):
@@ -112,6 +114,10 @@ def process_dataset(
             "--output_path", str(sparse_path)
         ])
 
+        # A subprocess exit code is not proof of successful 3D reconstruction.
+        # COLMAP may return 0 without registering a viable sparse model.
+        find_colmap_model(sparse_path)
+
         # --- STEP 3: 3D Gaussian Splatting ---
         # Never manufacture a fake .splat, even when COLMAP succeeds.
         model_relpath = None
@@ -123,6 +129,9 @@ def process_dataset(
                     "REAL_3DGS_UNAVAILABLE: configure SPLATFORGE_TRAIN_SCRIPT "
                     "to an installed, GPU-compatible training script; no model was generated"
                 )
+            # Graphdeco-compatible trainers require <source>/images and
+            # <source>/sparse/0, unlike our internal COLMAP folder layout.
+            prepare_graphdeco_dataset(frames_path, sparse_path, session_output_path)
             update_progress(80, "3DGS: Training actual Gaussian model")
             run_command([
                 "python", str(Path(trainer).resolve()),

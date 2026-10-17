@@ -114,7 +114,7 @@ def _run_pipeline(sid: str, session_path: Path):
         session_update(sid, status="running", progress=2, step="initializing")
 
         # Lazy import so startup is instant
-        from pipeline import process_dataset  # noqa: PLC0415
+        from app.pipeline import process_dataset  # noqa: PLC0415
 
         result = process_dataset(
             input_folder=str(session_path),
@@ -172,10 +172,10 @@ async def upload(
     """Upload images and start the pipeline."""
     # Validate
     valid = [f for f in files if Path(f.filename).suffix.lower() in SUPPORTED_EXT]
-    if len(valid) < 2:
+    if len(valid) < 5:
         raise HTTPException(
             400,
-            f"Need ≥ 2 supported images "
+            f"Need ≥ 5 supported images "
             f"({', '.join(sorted(SUPPORTED_EXT))}). Got {len(valid)}.",
         )
 

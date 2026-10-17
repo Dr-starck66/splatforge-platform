@@ -18,6 +18,11 @@ class Real3DGSProofGate(unittest.TestCase):
         for i in range(5):
             (self.inputs / f"photo_{i}.jpg").write_bytes(b"test-only-not-a-real-photo")
         self.outputs = self.root / "output"
+        # Emulate COLMAP file layout only; these are NOT real SfM results.
+        sparse = self.outputs / "negative-test" / "colmap" / "sparse" / "0"
+        sparse.mkdir(parents=True)
+        for name in ("cameras", "images", "points3D"):
+            (sparse / (name + ".bin")).write_bytes(b"test fixture")
 
     def invoke(self):
         return pipeline.process_dataset(
@@ -26,6 +31,14 @@ class Real3DGSProofGate(unittest.TestCase):
             session_id="negative-test",
             enable_3dgs=True,
         )
+
+    @patch.object(pipeline, "run_command", return_value="")
+    def test_missing_colmap_model_never_returns_success(self, mocked):
+        sparse = self.outputs / "negative-test" / "colmap" / "sparse" / "0"
+        for f in sparse.glob("*"):
+            f.unlink()
+        with self.assertRaisesRegex(RuntimeError, "COLMAP_MODEL_MISSING"):
+            self.invoke()
 
     @patch.object(pipeline, "run_command", return_value="")
     def test_missing_gpu_trainer_never_produces_fake_splat(self, mocked):

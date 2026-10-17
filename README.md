@@ -53,3 +53,20 @@ Le fichier `app/pipeline.py` est présent et lance le pipeline COLMAP. **Un entr
 - **Voir les logs** : `docker compose logs -f api`
 - **Arrêter l'application** : `docker compose down`
 - **Vérifier l'état du GPU** : `docker exec -it splatforge-api nvidia-smi`
+
+
+## ASTRA external technology integration audit — 17 Oct 2026
+
+Source technologies: [COLMAP](https://github.com/colmap/colmap) (SfM) and [Graphdeco Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) (optional GPU trainer). The project **invokes installed COLMAP**, but this is not a claim that the original COLMAP or Graphdeco GitHub source has been cloned or that the original links came from any past user message.
+
+The production pipeline now verifies that COLMAP generated non-empty \`cameras/images/points3D\` model files in a sparse reconstruction. If missing, it fails before declaring reconstruction success. When \`SPLATFORGE_TRAIN_SCRIPT\` points to a real, **already licensed and installed** GPU-compatible Graphdeco-style trainer, the new \`app/gs_adapter.py\` presents the COLMAP data at \`images/\` and \`sparse/0/\` under each session and launches the trainer. No trainer is bundled or fetched automatically because upstream license terms must be reviewed before commercial reuse.
+
+CPU-only regression checks (they use synthetic model-file fixtures, **not real GPU reconstructions**):
+
+\`\`\`bash
+python -m unittest discover -s tests -v
+\`\`\`
+
+A **real end-to-end PASS** requires valid photos, an actual COLMAP binary, a compatible NVIDIA/CUDA environment, an authorized 3DGS trainer, readable COLMAP reconstruction data and a real output PLY/splat verified by an independent viewer. The present CI-negative/model-file tests are only software validation. Do not assert 3D rendering PASS or run paid cloud jobs based on these tests alone.
+
+API import fix: \`app.main\` now imports \`app.pipeline\` consistently, and API uploads require at least five photographs (matching the pipeline threshold).
