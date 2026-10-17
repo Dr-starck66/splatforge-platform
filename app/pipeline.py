@@ -54,9 +54,10 @@ def process_dataset(
     # Paths
     colmap_path = session_output_path / "colmap"
     gs_path = session_output_path / "3dgs"
-    frames_path = session_output_path / "input_frames"
+    # Canonical COLMAP/3DGS dataset layout expected by real Gaussian trainers.
+    frames_path = session_output_path / "images"
     database_path = colmap_path / "database.db"
-    sparse_path = colmap_path / "sparse"
+    sparse_path = session_output_path / "sparse"
     
     for p in [colmap_path, gs_path, frames_path, sparse_path]:
         p.mkdir(exist_ok=True)
@@ -111,6 +112,12 @@ def process_dataset(
             "--image_path", str(frames_path),
             "--output_path", str(sparse_path)
         ])
+
+        # A COLMAP process can exit zero despite registering no cameras. The
+        # genuine trainer must not be run on a nonexistent reconstruction.
+        models = list(sparse_path.glob("*/cameras.bin")) + list(sparse_path.glob("*/cameras.txt"))
+        if not models:
+            raise RuntimeError("COLMAP_EMPTY_RECONSTRUCTION: no registered camera model")
 
         # --- STEP 3: 3D Gaussian Splatting ---
         # Never manufacture a fake .splat, even when COLMAP succeeds.
