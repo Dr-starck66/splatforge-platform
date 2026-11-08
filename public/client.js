@@ -54,4 +54,4 @@ $('terrain').addEventListener('pointerdown',e=>{dragging=true;px=e.clientX;$('te
 $('terrain').addEventListener('pointermove',e=>{if(!dragging)return;angle+=(e.clientX-px)*.009;px=e.clientX;scene()});
 $('terrain').addEventListener('pointerup',()=>dragging=false);$('terrain').addEventListener('pointercancel',()=>dragging=false);
 window.addEventListener('resize',scene);
-scene();fetch('/data.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then(async r=>{report=r;const good=await verify();$('health').textContent=good?`● Archives ${r.version} vérifiées · 420 trajectoires`:'FAIL · intégrité';replaySeed()}).catch(e=>{$('health').textContent=`FAIL · ${e.message}`;$('verification').textContent='FAIL · Données indisponibles'});
+scene();fetch('./data.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then(async r=>{report=r;const good=await verify();$('health').textContent=good?`● Archives ${r.version} vérifiées · 420 trajectoires`:'FAIL · intégrité';replaySeed()}).catch(e=>{$('health').textContent=`FAIL · ${e.message}`;$('verification').textContent='FAIL · Données indisponibles'});
