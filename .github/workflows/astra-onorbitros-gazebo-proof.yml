@@ -1,0 +1,74 @@
+name: ASTRA - OnOrbitROS real ROS1 and Gazebo integration proof
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'tools/onorbitros-gazebo-lab/**'
+      - '.github/workflows/astra-onorbitros-gazebo-proof.yml'
+permissions:
+  contents: read
+jobs:
+  ros-gazebo-proof:
+    name: ROS Noetic plus Gazebo actual upstream integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - name: Checkout public-only proof branch
+        uses: actions/checkout@v4
+      - name: Verify only public generic files in runner
+        run: |
+          python3 -m py_compile tools/onorbitros-gazebo-lab/api.py
+          bash -n tools/onorbitros-gazebo-lab/start.sh
+      - name: Build pinned real upstream OnOrbitROS and ROS Noetic image
+        run: |
+          docker build --progress=plain \
+            -f tools/onorbitros-gazebo-lab/Dockerfile \
+            -t astra-onorbitros-gazebo:proof tools/onorbitros-gazebo-lab
+      - name: Start actual ROS Noetic plus headless Gazebo plus upstream C++ publisher
+        run: |
+          docker run -d --rm --name astra-onorbitros-gazebo --memory=5g \
+            -e PORT=10000 -p 127.0.0.1:10000:10000 astra-onorbitros-gazebo:proof
+      - name: Poll live ROS and Gazebo telemetry; no mock acceptance
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 50); do
+            if curl --fail --silent --show-error --max-time 8 \
+                 http://127.0.0.1:10000/evidence > /tmp/onorbitros-evidence.json; then
+              if python3 - <<'PY'
+          import json,sys,math
+          d=json.load(open('/tmp/onorbitros-evidence.json'))
+          m=d.get('frame') or {}
+          good=(d.get('status')=='LIVE_ROS_GAZEBO_OBSERVED'
+              and d.get('realRobotCommandCount')==0
+              and m.get('status')=='OBSERVED_TELEMETRY_ONLY'
+              and not m.get('issues')
+              and all(d.get('topicCounters',{}).get(k,0)>2 for k in ('pose','velocity','clock'))
+              and isinstance(m.get('position_eci'),list)
+              and isinstance(m.get('velocity_eci'),list)
+              and isinstance(m.get('sim_time_s'),(int,float))
+              and m['sim_time_s']>0
+              and any('gazebo' in x.lower() for x in d.get('rosNodes',[]))
+              and any('orbit' in x.lower() and 'astra' not in x.lower() for x in d.get('rosNodes',[])))
+          print('OnOrbitROS public actual runtime proof:', 'PASS' if good else 'WAITING',
+                'status=',d.get('status'),'topicCounters=',d.get('topicCounters'),
+                'rosNodes=',d.get('rosNodes'),flush=True)
+          sys.exit(0 if good else 1)
+          PY
+              then
+                echo 'REAL_ROS_GAZEBO_UPSTREAM_PASS'
+                exit 0
+              fi
+            fi
+            sleep 8
+          done
+          echo 'REAL_ROS_GAZEBO_UPSTREAM_FAIL' >&2
+          exit 1
+      - name: Publish evidence to job log; stop container
+        if: always()
+        run: |
+          echo '===PROOF FRAME==='; cat /tmp/onorbitros-evidence.json 2>/dev/null || true
+          echo; echo '===ROS PROCESS LOGS==='; docker logs astra-onorbitros-gazebo 2>&1 | tail -150 || true
+          echo; docker exec astra-onorbitros-gazebo bash -lc \
+            'for x in roscore gazebo orbit; do echo ==$x==; tail -50 /tmp/onorbit/$x.log 2>/dev/null; done' || true
+          docker stop astra-onorbitros-gazebo || true
